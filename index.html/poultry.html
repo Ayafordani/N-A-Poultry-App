@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poultry Tracker</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+<!-- NAVBAR -->
+<div class="bg-white shadow-md p-4 flex justify-between items-center">
+  <h1 class="text-xl font-bold">🐔 Poultry App</h1>
+  <div class="space-x-2">
+    <button onclick="showPage('dashboard')" class="px-3 py-2 bg-blue-500 text-white rounded-lg">Dashboard</button>
+    <button onclick="showPage('batches')" class="px-3 py-2 bg-gray-200 rounded-lg">Batches</button>
+    <button onclick="showPage('daily')" class="px-3 py-2 bg-gray-200 rounded-lg">Daily</button>
+    <button onclick="showPage('finance')" class="px-3 py-2 bg-gray-200 rounded-lg">Finance</button>
+    <button onclick="showPage('profitPage')" class="px-3 py-2 bg-gray-200 rounded-lg">Profit</button>
+    <button onclick="showPage('lossesPage')" class="px-3 py-2 bg-gray-200 rounded-lg">Losses</button>
+    <button onclick="showPage('records')" class="px-3 py-2 bg-gray-200 rounded-lg">Logs</button>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="page p-4">
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+    <div class="bg-white p-4 rounded-2xl shadow">🐣 Total<br><span id="total">0</span></div>
+    <div class="bg-white p-4 rounded-2xl shadow">💀 Deaths<br><span id="deaths">0</span></div>
+    <div class="bg-white p-4 rounded-2xl shadow">💰 Sold<br><span id="sold">0</span></div>
+    <div class="bg-white p-4 rounded-2xl shadow">🔥 Profit<br><span id="profit">0</span></div>
+  </div>
+</div>
+
+<!-- BATCH PAGE -->
+<div id="batches" class="page hidden p-4">
+  <h2 class="font-bold mb-3">Batch Management (Strict Accounting)</h2>
+
+  <div class="bg-white p-4 rounded-xl shadow mb-4">
+    <input id="batchName" placeholder="Batch Name (e.g Batch A)" class="border p-2 w-full mb-2">
+    <input id="batchCount" type="number" placeholder="Number of chicks" class="border p-2 w-full mb-2">
+    <button onclick="createBatch()" class="bg-green-500 text-white w-full p-2 rounded">Create Batch</button>
+  </div>
+
+  <div id="batchList"></div>
+</div>
+
+<!-- DAILY -->
+<div id="daily" class="page hidden p-4">
+  <h2 class="font-bold mb-3">Daily Actions</h2>
+
+  <select id="selectedBatch" class="border p-2 w-full mb-3"></select>
+
+  <input id="deathCount" type="number" placeholder="Deaths" class="border p-2 w-full mb-2">
+  <button onclick="recordDeath()" class="bg-red-500 text-white w-full p-2 rounded mb-3">💀 Record Death</button>
+
+  <input id="saleCount" type="number" placeholder="Sold" class="border p-2 w-full mb-2">
+  <input id="salePrice" type="number" placeholder="Price per chick" class="border p-2 w-full mb-2">
+  <button onclick="recordSale()" class="bg-blue-500 text-white w-full p-2 rounded">💰 Record Sale</button>
+</div>
+
+<!-- FINANCE -->
+<div id="finance" class="page hidden p-4">
+  <input id="expenseAmount" type="number" placeholder="Expense" class="border p-2 w-full mb-2">
+  <button onclick="addExpense()" class="bg-yellow-500 text-white w-full p-2 rounded">Add Expense</button>
+</div>
+
+<!-- PROFIT PAGE -->
+<div id="profitPage" class="page hidden p-4">
+  <h2 class="font-bold mb-3">Profit Overview</h2>
+  <div class="bg-white p-4 rounded-xl shadow">
+    <p>Revenue: <b id="profitRevenue">0</b></p>
+    <p>Expenses: <b id="profitExpenses">0</b></p>
+    <p class="text-xl mt-2">Net Profit: <b id="netProfit">0</b></p>
+  </div>
+</div>
+
+<!-- LOSSES PAGE -->
+<div id="lossesPage" class="page hidden p-4">
+  <h2 class="font-bold mb-3">Losses Overview</h2>
+  <div class="bg-white p-4 rounded-xl shadow">
+    <p>Total Deaths: <b id="lossDeaths">0</b></p>
+    <p>Total Expenses (Loss Cost): <b id="lossExpenses">0</b></p>
+    <p class="mt-2">Biggest loss factor: <b>Deaths + Feed/Expenses</b></p>
+  </div>
+</div>
+
+<!-- LOGS -->
+<div id="records" class="page hidden p-4">
+  <ul id="log"></ul>
+</div>
+
+<script>
+const defaultData = {
+  batches: [],
+  deaths: 0,
+  sold: 0,
+  revenue: 0,
+  expenses: 0,
+  logs: []
+};
+
+let stored = {};
+try {
+  stored = JSON.parse(localStorage.getItem('poultry')) || {};
+} catch (e) {
+  stored = {};
+}
+
+let data = {
+  ...defaultData,
+  ...stored,
+  batches: Array.isArray(stored.batches) ? stored.batches : [],
+  logs: Array.isArray(stored.logs) ? stored.logs : []
+};
+
+function save() {
+  localStorage.setItem('poultry', JSON.stringify(data));
+  updateUI();
+}
+
+function createBatch() {
+  let name = document.getElementById('batchName').value;
+  let count = parseInt(document.getElementById('batchCount').value);
+
+  if(name && count > 0) {
+    data.batches.push({ 
+      name, 
+      initial: count,
+      current: count,
+      sold: 0,
+      deaths: 0
+    });
+
+    data.logs.push('Created ' + name + ' with ' + count + ' chicks');
+    save();
+  }
+}
+
+function updateUI() {
+  const batches = Array.isArray(data.batches) ? data.batches : [];
+
+  let total = batches.reduce((sum, b) => sum + (b.current || 0), 0);
+
+  document.getElementById('total').innerText = total;
+  document.getElementById('deaths').innerText = data.deaths || 0;
+  document.getElementById('sold').innerText = data.sold || 0;
+  document.getElementById('profit').innerText = (data.revenue || 0) - (data.expenses || 0);
+
+  // PROFIT PAGE
+  document.getElementById('profitRevenue').innerText = data.revenue || 0;
+  document.getElementById('profitExpenses').innerText = data.expenses || 0;
+  document.getElementById('netProfit').innerText = (data.revenue || 0) - (data.expenses || 0);
+
+  // LOSSES PAGE
+  document.getElementById('lossDeaths').innerText = data.deaths || 0;
+  document.getElementById('lossExpenses').innerText = data.expenses || 0;
+
+  let batchList = document.getElementById('batchList');
+  batchList.innerHTML = '';
+
+  let select = document.getElementById('selectedBatch');
+  select.innerHTML = '';
+
+  batches.forEach((b, i) => {
+    batchList.innerHTML += `<div class='bg-white p-3 mb-2 rounded shadow'>
+      <b>${b.name}</b><br>
+      Initial: ${b.initial} | Current: ${b.current} | Sold: ${b.sold} | Deaths: ${b.deaths}
+    </div>`;
+
+    select.innerHTML += `<option value='${i}'>${b.name}</option>`;
+  });
+
+  let logList = document.getElementById('log');
+  logList.innerHTML = '';
+  (data.logs || []).slice().reverse().forEach(l => {
+    logList.innerHTML += `<li>${l}</li>`;
+  });
+}
+
+function recordDeath() {
+  let idx = document.getElementById('selectedBatch').value;
+  let count = parseInt(document.getElementById('deathCount').value);
+
+  if(!data.batches[idx] || count <= 0) return;
+
+  let batch = data.batches[idx];
+
+  if(count > batch.current) {
+    alert('Not enough chicks in batch!');
+    return;
+  }
+
+  batch.current -= count;
+  batch.deaths += count;
+  data.deaths += count;
+
+  data.logs.push(count + ' died from ' + batch.name);
+  save();
+}
+
+function recordSale() {
+  let idx = document.getElementById('selectedBatch').value;
+  let count = parseInt(document.getElementById('saleCount').value);
+  let price = parseFloat(document.getElementById('salePrice').value);
+
+  if(!data.batches[idx] || count <= 0) return;
+
+  let batch = data.batches[idx];
+
+  if(count > batch.current) {
+    alert('Not enough chicks to sell!');
+    return;
+  }
+
+  batch.current -= count;
+  batch.sold += count;
+
+  let total = count * price;
+  data.revenue += total;
+  data.sold += count;
+
+  data.logs.push('Sold ' + count + ' from ' + batch.name);
+  save();
+}
+
+function addExpense() {
+  let amount = parseFloat(document.getElementById('expenseAmount').value);
+  if(amount > 0) {
+    data.expenses += amount;
+    data.logs.push('Expense ' + amount);
+    save();
+  }
+}
+
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(x => x.classList.add('hidden'));
+  document.getElementById(p).classList.remove('hidden');
+}
+
+updateUI();
+
+console.log('TEST: App loaded safely', data);
+console.assert(Array.isArray(data.batches), 'Batches should be array');
+console.assert(typeof updateUI === 'function', 'updateUI exists');
+</script>
+
+</body>
+</html>
